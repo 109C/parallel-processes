@@ -2,6 +2,7 @@
 
 var child_process = require("child_process")
 var os = require("os")
+var util = require("util")
 
 module.exports = function WorkerManager(ChildPath, NumWorkers){
     var NumWorkers = NumWorkers || os.cpus().length
@@ -10,6 +11,8 @@ module.exports = function WorkerManager(ChildPath, NumWorkers){
     this.workers = {}
     this.freeWorkers = {}
     this.pidToCallback = {}
+    
+    this.exposedData = {}
     
     this.run = function(Message, Callback){
         // Wait until we have a free worker, if necessary.
@@ -43,7 +46,7 @@ module.exports = function WorkerManager(ChildPath, NumWorkers){
         this.pidToCallback[RandomWorker.pid] = Callback
         delete this.freeWorkers[RandomWorker.pid]
         
-        RandomWorker.send(Message)
+        RandomWorker.send("R00000" + Message)
     }
     
     this.kill = function(){
@@ -56,8 +59,13 @@ module.exports = function WorkerManager(ChildPath, NumWorkers){
             throw new Error("Cannot run, all the children are dead");
         }
         
+        this.exposedData = {}
         this.run = ErrorFunction
         this.forceRun = ErrorFunction
+        this.expose = ErrorFunction
+    }
+    this.expose = function(Key, Data){
+        this.exposedData[Key] = Data
     }
     
     // Init workers, and add listeners.
@@ -83,10 +91,29 @@ module.exports = function WorkerManager(ChildPath, NumWorkers){
             })
             
             Child.on('message', function(Message){
-                Self.pidToCallback[Child.pid](Message)
-                delete Self.pidToCallback[Child.pid]
+                // Format:  "M" | "E" + uid + message payload
+                // Sizes:   1           5     rest of message
                 
-                Self.freeWorkers[Child.pid] = Child
+                //console.log("Child -> Parent: " + Message)
+                
+                var MessageMetadata = Message.slice(0, 6)
+                var MessageData = Message.slice(6)
+                
+                if(MessageMetadata[0] == "M"){
+                    // JSON.stringify fails on recursive structures, but there's not
+                    // much of a choice when sending recursive structures.
+                    // (Possible, but a pain)
+                    Child.send("M" + MessageMetadata.slice(1) + JSON.stringify(Self.exposedData[MessageData]))
+                    
+                }else if(MessageMetadata[0] == "E"){
+                    // Parse in case it was a json literal.
+                    Self.pidToCallback[Child.pid](JSON.parse(MessageData))
+                    delete Self.pidToCallback[Child.pid]
+                    
+                    Self.freeWorkers[Child.pid] = Child
+                }else{
+                    throw new Error("Invalid message header (" + MessageMetadata[0] + ")")
+                }
             })
         })();
     }

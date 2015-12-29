@@ -9,7 +9,21 @@ var doublerModulePath = __dirname + "/doubler.js"
 */
 var manager = new parallelProcesses(doublerModulePath, 3)
 
+
+// Numbers to double and print to console.
 var numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+// Some random data that the child can access.
+var someData  = {
+    text: "Arbitrary data here, I could put anything here",
+    biggestNumber: 0,
+    r: someData
+}
+
+/* Tell the manager that the children can access it. Note that the child receives a copy
+|| of the object, not a reference because javascript is synchronous.
+*/
+manager.expose("someData", someData)
 
 /* Double all of the numbers. Keep in mind this is asynchronous, so they arrive
 || in different order than they where sent in.
@@ -17,6 +31,7 @@ var numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 numbers.forEach(function(element){
     manager.run(element, function(reponse){
         console.log( element + " doubled is " + reponse)
+        someData.biggestNumber = element > someData.biggestNumber ? element : someData.biggestNumber
     })
 })
 
