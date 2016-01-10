@@ -4,9 +4,7 @@ A simple framework to make running more than one piece of javascript at a time.
 
 # Installation
 
-`npm install parallel-processes`
-
-Or alternatively, just download it as it is because it doesn't have any dependencies.
+Just download it and require it. That's all, there's no external dependencies.
 
 # Example usage
 
